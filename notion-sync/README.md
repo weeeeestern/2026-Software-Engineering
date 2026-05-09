@@ -7,19 +7,20 @@ This repository includes a one-command sync pipeline that exports the latest Not
 1. Create a Notion integration at <https://www.notion.so/my-integrations>.
 2. Copy the integration secret.
 3. Share the meeting database with that integration.
-4. Copy `.env.example` to `.env`.
+4. Copy `notion-sync/.env.example` to `notion-sync/.env`.
 5. Fill in `NOTION_TOKEN` and `NOTION_DATABASE_URL` in `.env`.
 
 ## Run
 
 ```powershell
-.\sync-notion.cmd
+cd "C:\Users\carro\OneDrive\문서\New project 5"
+.\notion-sync\sync-notion.cmd
 ```
 
 If you prefer running the PowerShell script directly and your machine allows it, this also works:
 
 ```powershell
-.\sync-notion.ps1
+.\notion-sync\sync-notion.ps1
 ```
 
 By default, the script finds the most recently edited page in the Notion database and writes it to the `Scrum` folder. If that page has a Notion date property, the filename uses that date. Otherwise it uses today's date.

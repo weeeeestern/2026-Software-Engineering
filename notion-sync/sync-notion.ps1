@@ -541,6 +541,15 @@ function Invoke-Git {
     }
 }
 
+function Get-WorkspaceRoot {
+    $root = (& git rev-parse --show-toplevel 2>$null)
+    if ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace($root)) {
+        return $root.Trim()
+    }
+
+    return (Get-Location).Path
+}
+
 function Get-RemoteDefaultBranch {
     param([string]$RemoteName)
 
@@ -606,7 +615,15 @@ function Ensure-GitRemoteAndBranch {
     return $TargetBranch
 }
 
-Load-DotEnv (Join-Path $PSScriptRoot ".env")
+$script:WorkspaceRoot = Get-WorkspaceRoot
+Set-Location -LiteralPath $script:WorkspaceRoot
+
+$rootEnvPath = Join-Path $script:WorkspaceRoot ".env"
+$scriptEnvPath = Join-Path $PSScriptRoot ".env"
+if ($rootEnvPath -ne $scriptEnvPath) {
+    Load-DotEnv $rootEnvPath
+}
+Load-DotEnv $scriptEnvPath
 
 if (-not $NotionToken) { $NotionToken = $env:NOTION_TOKEN }
 if (-not $NotionDatabase) { $NotionDatabase = $env:NOTION_DATABASE_URL }
@@ -624,19 +641,15 @@ if ([string]::IsNullOrWhiteSpace($NotionDatabase) -and [string]::IsNullOrWhiteSp
 if ([string]::IsNullOrWhiteSpace($RepoUrl)) { $RepoUrl = "https://github.com/weeeeestern/2026-Software-Engineering.git" }
 if ([string]::IsNullOrWhiteSpace($CommitMessage)) { $CommitMessage = "Sync scrum meeting notes" }
 
-$script:WorkspaceRoot = (Get-Location).Path
-
 if (-not [string]::IsNullOrWhiteSpace($NotionDatabase)) {
     $databaseId = Get-NotionObjectId $NotionDatabase "NOTION_DATABASE_URL"
     Write-Host "Finding latest page in Notion database $(ConvertTo-NotionUuid $databaseId)..."
     $page = Get-LatestDatabasePage $databaseId
-    $sourceUrl = if ($page.url) { $page.url } else { $NotionDatabase }
 } else {
     $pageId = Get-NotionObjectId $NotionPage "NOTION_PAGE_URL"
     $pageUuid = ConvertTo-NotionUuid $pageId
     Write-Host "Reading Notion page $pageUuid..."
     $page = Invoke-NotionApi "https://api.notion.com/v1/pages/$pageUuid"
-    $sourceUrl = if ($page.url) { $page.url } else { $NotionPage }
 }
 
 $title = Get-PageTitle $page
@@ -647,15 +660,8 @@ $script:PageId = $page.id.Replace("-", "").ToLower()
 $activeBranch = Ensure-GitRemoteAndBranch $RepoUrl $Branch
 $blocks = Get-Blocks $script:PageId
 $body = Format-Blocks $blocks
-$generatedAt = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
 
 $markdown = @"
----
-title: "$($title.Replace('"', '\"'))"
-source: "$sourceUrl"
-synced_at: "$generatedAt"
----
-
 # $title
 
 $body
@@ -672,10 +678,7 @@ $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
 Write-Host "Wrote $OutputPath"
 
 $pathsToAdd = @($OutputPath)
-if (Test-Path -LiteralPath (Join-Path $script:WorkspaceRoot "sync-notion.ps1")) { $pathsToAdd += "sync-notion.ps1" }
-if (Test-Path -LiteralPath (Join-Path $script:WorkspaceRoot "sync-notion.cmd")) { $pathsToAdd += "sync-notion.cmd" }
-if (Test-Path -LiteralPath (Join-Path $script:WorkspaceRoot "README.md")) { $pathsToAdd += "README.md" }
-if (Test-Path -LiteralPath (Join-Path $script:WorkspaceRoot ".env.example")) { $pathsToAdd += ".env.example" }
+if (Test-Path -LiteralPath (Join-Path $script:WorkspaceRoot "notion-sync")) { $pathsToAdd += "notion-sync" }
 if (Test-Path -LiteralPath (Join-Path $script:WorkspaceRoot ".gitignore")) { $pathsToAdd += ".gitignore" }
 if (Test-Path -LiteralPath (Join-Path $script:WorkspaceRoot "assets")) { $pathsToAdd += "assets" }
 
