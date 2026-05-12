@@ -542,9 +542,14 @@ function Invoke-Git {
 }
 
 function Get-WorkspaceRoot {
-    $root = (& git rev-parse --show-toplevel 2>$null)
-    if ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace($root)) {
-        return $root.Trim()
+    $directory = Get-Item -LiteralPath $PSScriptRoot
+
+    while ($directory) {
+        if (Test-Path -LiteralPath (Join-Path $directory.FullName ".git")) {
+            return $directory.FullName
+        }
+
+        $directory = $directory.Parent
     }
 
     return (Get-Location).Path
